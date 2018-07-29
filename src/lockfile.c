@@ -89,13 +89,6 @@ int lockfile(const char *dir, const char *name, int uid, int gid)
 		goto fail;
 	}
 
-	rv = fchown(fd, uid, gid);
-	if (rv < 0) {
-		log_error("lockfile fchown error %s: %s",
-			  path, strerror(errno));
-		goto fail;
-	}
-
 	return fd;
  fail:
 	close(fd);
