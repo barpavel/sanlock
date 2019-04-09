@@ -13,7 +13,7 @@ tarball := $(distname).tar.gz
 all:
 	$(MAKE) -C wdmd
 	$(MAKE) -C src
-	$(MAKE) -C python inplace
+	$(MAKE) -C python
 
 clean:
 	$(MAKE) -C wdmd clean
