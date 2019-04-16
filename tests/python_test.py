@@ -37,6 +37,24 @@ def test_write_lockspace(tmpdir, sanlock_daemon):
     util.check_guard(str(path), size)
 
 
+@pytest.mark.parametrize("align", [1048576, 2097152, 4194304, 8388608])
+def test_write_lockspace_invalid_align(align):
+    # sanlock accepts only align constants 0x10, 0x20, 0x40, 0x80.
+    with pytest.raises(ValueError):
+        sanlock.write_lockspace("name", "/no/such/path", align=align)
+
+
+@pytest.mark.parametrize("sector", [
+    pytest.param(512, marks=pytest.mark.xfail(
+        reason="512 is valid value meaning 4k sector size")),
+    4096
+])
+def test_write_lockspace_invalid_sector(sector):
+    # sanlock accepts only sector constants 0x100, 0x200.
+    with pytest.raises(ValueError):
+        sanlock.write_lockspace("name", "/no/such/path", sector=sector)
+
+
 def test_write_resource(tmpdir, sanlock_daemon):
     path = str(tmpdir.join("resources"))
     size = 1024**2

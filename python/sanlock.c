@@ -30,6 +30,25 @@
 #define __neg_sets_exception
 #endif
 
+static int validate_align_and_sector(uint32_t align, uint32_t sector)
+{
+    if (align != SANLK_RES_ALIGN1M &&
+            align != SANLK_RES_ALIGN2M &&
+            align != SANLK_RES_ALIGN4M &&
+            align != SANLK_RES_ALIGN8M) {
+        PyErr_Format(PyExc_ValueError, "Invalid align value: %d", align);
+        return 0;
+    }
+
+    if (sector != SANLK_RES_SECTOR512 &&
+            sector != SANLK_RES_SECTOR4K) {
+        PyErr_Format(PyExc_ValueError, "Invalid sector value: %d", sector);
+        return 0;
+    }
+
+    return 1;
+}
+
 /* Functions prototypes */
 static void __set_exception(int en, char *msg) __sets_exception;
 static int __parse_resource(PyObject *obj, struct sanlk_resource **res_ret) __neg_sets_exception;
@@ -386,6 +405,10 @@ py_write_lockspace(PyObject *self __unused, PyObject *args, PyObject *keywds)
         return NULL;
     }
 
+    if (!validate_align_and_sector(align, sector)) {
+        return NULL;
+    }
+
     /* prepare sanlock names */
     strncpy(ls.name, lockspace, SANLK_NAME_LEN);
     strncpy(ls.host_id_disk.path, path, SANLK_PATH_LEN - 1);
@@ -430,6 +453,10 @@ py_read_lockspace(PyObject *self __unused, PyObject *args, PyObject *keywds)
     /* parse python tuple */
     if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|kII", kwlist,
         &path, &ls.host_id_disk.offset, &align, &sector)) {
+        return NULL;
+    }
+
+    if (!validate_align_and_sector(align, sector)) {
         return NULL;
     }
 
@@ -514,6 +541,10 @@ py_read_resource(PyObject *self __unused, PyObject *args, PyObject *keywds)
         goto exit_fail;
     }
 
+    if (!validate_align_and_sector(align, sector)) {
+        return NULL;
+    }
+
     /* prepare the resource disk path */
     strncpy(rs->disks[0].path, path, SANLK_PATH_LEN - 1);
 
@@ -596,6 +627,10 @@ py_write_resource(PyObject *self __unused, PyObject *args, PyObject *keywds)
     if (!PyArg_ParseTupleAndKeywords(args, keywds, "ssO!|iiiII",
         kwlist, &lockspace, &resource, &PyList_Type, &disks, &max_hosts,
         &num_hosts, &clear, &align, &sector)) {
+        return NULL;
+    }
+
+    if (!validate_align_and_sector(align, sector)) {
         return NULL;
     }
 
