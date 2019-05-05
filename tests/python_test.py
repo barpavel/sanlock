@@ -4,6 +4,7 @@ Test sanlock python binding with sanlock daemon.
 
 import errno
 import io
+import os
 import struct
 import time
 
@@ -25,6 +26,7 @@ MIN_RES_SIZE = 1024**2
 
 ALIGNMENT_1M = 1024**2
 SECTOR_SIZE_512 = 512
+SECTOR_SIZE_4K = 4096
 
 
 @pytest.mark.parametrize("size,offset", [
@@ -64,6 +66,39 @@ def test_write_lockspace(tmpdir, sanlock_daemon, size, offset):
         # TODO: check more stuff here...
 
     util.check_guard(path, size)
+
+
+@pytest.mark.skipif(
+    "SANLOCK_4K_PATH" not in os.environ,
+    reason="Requires user specified path using 4k block size")
+@pytest.mark.parametrize("align", sanlock.ALIGN_SIZE)
+def test_write_lockspace_4k(sanlock_daemon, align):
+    path = os.environ["SANLOCK_4K_PATH"]
+
+    # Postion lockspace area, ensuring that previous tests will not break this
+    # test, and sanlock does not write after the lockspace area.
+    with io.open(path, "rb+") as f:
+        f.write(align * b"x")
+        f.write(4096 * b"X")
+
+    sanlock.write_lockspace(
+        "name", path, iotimeout=1, align=align, sector=SECTOR_SIZE_4K)
+
+    ls = sanlock.read_lockspace(path, align=align, sector=SECTOR_SIZE_4K)
+
+    assert ls == {"iotimeout": 1, "lockspace": "name"}
+
+    acquired = sanlock.inq_lockspace("name", 1, path, wait=False)
+    assert acquired is False
+
+    with io.open(path, "rb") as f:
+        # Verify that lockspace was written.
+        magic, = struct.unpack("< I", f.read(4))
+        assert magic == constants.DELTA_DISK_MAGIC
+
+        # Check that sanlock did not write after the lockspace area.
+        f.seek(align)
+        assert f.read(4096) == b"X" * 4096
 
 
 @pytest.mark.parametrize("size,offset", [
@@ -111,6 +146,44 @@ def test_write_resource(tmpdir, sanlock_daemon, size, offset):
         # TODO: check more stuff here...
 
     util.check_guard(path, size)
+
+
+@pytest.mark.skipif(
+    "SANLOCK_4K_PATH" not in os.environ,
+    reason="Requires user specified path using 4k block size")
+@pytest.mark.parametrize("align", sanlock.ALIGN_SIZE)
+def test_write_resource_4k(sanlock_daemon, align):
+    path = os.environ["SANLOCK_4K_PATH"]
+    disks = [(path, 0)]
+
+    # Postion resource area, ensuring that previous tests will not break this
+    # test, and sanlock does not write after the lockspace area.
+    with io.open(path, "rb+") as f:
+        f.write(align * b"x")
+        f.write(4096 * b"X")
+
+    sanlock.write_resource(
+        "ls_name", "res_name", disks, align=align, sector=SECTOR_SIZE_4K)
+
+    res = sanlock.read_resource(path, align=align, sector=SECTOR_SIZE_4K)
+
+    assert res == {
+        "lockspace": "ls_name",
+        "resource": "res_name",
+        "version": 0
+    }
+
+    owners = sanlock.read_resource_owners("ls_name", "res_name", disks)
+    assert owners == []
+
+    with io.open(path, "rb") as f:
+        # Verify that resource was written.
+        magic, = struct.unpack("< I", f.read(4))
+        assert magic == constants.PAXOS_DISK_MAGIC
+
+        # Check that sanlock did not write after the resource area.
+        f.seek(align)
+        assert f.read(4096) == b"X" * 4096
 
 
 @pytest.mark.parametrize("size,offset", [
